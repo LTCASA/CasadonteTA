@@ -1,0 +1,189 @@
+---
+title: "CyclisticTripData"
+author: "Tom C"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+
+## R Markdown for Cyclistic Case Study
+
+This is my first crack at creating a Rstudio and Rmarkdown case study.  
+
+I will start the Rmarkdown documentation at the point where my data is loaded and ready for
+data cleaning.
+
+##Install and load packages
+
+```{r}
+library(dplyr)
+library(tidyverse)  #helps wrangle data
+library(lubridate)  #helps wrangle date attributes
+library(ggplot2)  #helps visualize data
+library(readr)
+
+```
+
+## View the combined_trip_data
+
+###View the dataset headers and find the variable type
+###Inspect the new table that has been created
+```{r}
+
+
+
+combined_trip_data<-read_csv("combined_trip_data.csv")
+
+head(combined_trip_data)
+glimpse(combined_trip_data)
+colnames(combined_trip_data)  #List of column names
+nrow(combined_trip_data)  #How many rows are in data frame?
+dim(combined_trip_data)  #Dimensions of the data frame?
+head(combined_trip_data)  #See the first 6 rows of data frame.  Also tail(all_trips)
+str(combined_trip_data)  #See list of columns and data types (numeric, character, etc)
+summary(combined_trip_data)  #Statistical summary of data. Mainly for numerics
+```
+
+##Add columns that split out the dates so we can do more analysis
+```{r}
+combined_trip_data$date <- as.Date(combined_trip_data$started_at)
+combined_trip_data$month <- format(as.Date(combined_trip_data$date), "%m")
+combined_trip_data$day <- format(as.Date(combined_trip_data$date), "%d")
+combined_trip_data$year <- format(as.Date(combined_trip_data$date), "%Y")
+combined_trip_data$day_of_week <- format(as.Date(combined_trip_data$date), "%A")
+```
+
+##Calculating the ride length and making it numeric so we can do calcs
+```{r}
+combined_trip_data$ride_length <- difftime(combined_trip_data$ended_at,combined_trip_data$started_at)
+str(combined_trip_data$ride_length)
+combined_trip_data$ride_length <- as.numeric(as.character(combined_trip_data$ride_length))
+is.numeric(combined_trip_data$ride_length)
+str(combined_trip_data$ride_length)
+```
+
+##remove instances where ride length was negative due to service being performed and create a new copy of the data.
+```{r}
+new_combined <- combined_trip_data[!(combined_trip_data$start_station_name == "HQ QR" | combined_trip_data$ride_length<0),]
+```
+
+##Saving the data
+```{r}
+save(new_combined,file="new_combined.RData")
+
+```
+##removing NA from the dataset and saving as new_combined2
+```{r}
+new_combined2<-na.omit(new_combined)
+save(new_combined2,file="new_combined2.RData")
+```
+##Looking at key parts of the data-could use summary() but decided manually
+##reviewing would be better practice.
+```{r}
+mean(new_combined2$ride_length)
+median(new_combined2$ride_length)
+max(new_combined2$ride_length)
+min(new_combined2$ride_length)
+```
+
+##start comparing members with casual users using aggregate function
+```{r}
+aggregate(new_combined2$ride_length~new_combined2$member_casual,FUN=mean)
+aggregate(new_combined2$ride_length~new_combined2$member_casual,FUN=median)
+aggregate(new_combined2$ride_length~new_combined2$member_casual,FUN=max)
+aggregate(new_combined2$ride_length~new_combined2$member_casual,FUN=min)
+```
+##Average ride time for each day of the week
+```{r}
+aggregate(new_combined2$ride_length~new_combined2$member_casual+new_combined2$day_of_week,FUN=mean)
+```
+
+##reorder the days of the week
+```{r}
+new_combined2$day_of_week<-ordered(new_combined2$day_of_week,levels=c("Sunday","Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+aggregate(new_combined2$ride_length~new_combined2$member_casual+new_combined2$day_of_week,FUN=mean)
+```
+
+
+##average ride time for casual and member each day
+```{r}
+aggregate(new_combined2$ride_length~new_combined2$member_casual+new_combined2$day_of_week,FUN=mean)
+```
+
+##counting number of rides by membe and casual and day
+```{r}
+new_combined2%>%
+  mutate(weekday=wday(started_at,label=TRUE))%>%
+  group_by(member_casual,weekday)%>%
+  summarise(number_of_rides=n()
+  ,average_duration=mean(ride_length))%>%
+  arrange(member_casual,weekday)
+```
+
+##visualization for number of rides
+```{r}
+new_combined2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")
+  ggsave("number_of_rides_plot.png")
+```
+
+##visualization for average duration
+```{r}
+new_combined2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge")
+  ggsave("number_of_rides_plot.png")
+```
+
+##export for use in tableau or other software-saving my csv file
+```{r}
+counts <- aggregate(new_combined2$ride_length ~ new_combined2$member_casual + new_combined2$day_of_week, FUN = mean)
+write.csv(counts, file = 'C:/Users/ltcas/Documents/Data Analytics/2021_2022_Trip_Data/trip_data-file/avg_ride_length.csv')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
